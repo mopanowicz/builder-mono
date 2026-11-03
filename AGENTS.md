@@ -11,11 +11,10 @@ Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js*
 │   ├── nodejs-builder/    # npm/pnpm build -> artifact
 │   └── nodejs-runtime/    # Node.js runtime (port 3000)
 ├── s2i-tests/
-│   ├── java-maven/
-│   ├── java-gradle/
+│   ├── java-maven/        # Spring Boot (Maven) test app (/actuator/health)
+│   ├── java-gradle/       # Spring Boot (Gradle) test app (/actuator/health)
 │   ├── nodejs-npm/
 │   └── nodejs-pnpm/
-├── hack/test-examples.sh
 └── Makefile
 ```
 
@@ -48,10 +47,11 @@ trivy image localhost/java-runtime:dev
 - **Scope**: Modify and test one S2I image at a time. Keep language-specific logic inside `s2i/<lang>-*/`, not the root `Makefile`.
 
 ### Test Apps (`s2i-tests/`)
+- `java-maven` and `java-gradle` are minimal Spring Boot applications with a healthcheck endpoint at `/actuator/health` (port `8080`).
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, or `Dockerfile.gen`.
 
 ## Verification Workflow
 1. Build the modified image locally.
-2. Build and run the matching example from `s2i-tests/` (`8080` for Java, `3000` for Node.js) and check logs for errors.
+2. Build and run the matching example from `s2i-tests/` (`8080/actuator/health` for Java, `3000` for Node.js) and check logs for errors.
 3. If modifying a runtime image, test the full builder -> runtime chain and verify non-root execution.

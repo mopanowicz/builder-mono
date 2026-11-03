@@ -7,4 +7,5 @@ build/
 
 # Generated S2I files
 Dockerfile.gen
+upload/
 
