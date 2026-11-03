@@ -4,28 +4,27 @@ Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js*
 
 This repository is intended as a reusable image-building foundation: builders install dependencies and compile or package the app, while runtime images contain only the runnable artifact and the minimum runtime environment needed to execute it.
 
-## Repository Structure
+## Repository Layout
 ```text
 .
 ├── s2i/
-│   ├── java-builder/      # Maven/Gradle build -> /opt/app-root/src/app.jar
-│   ├── java-runtime/      # JRE-only runtime (port 8080)
-│   ├── nodejs-builder/    # npm/yarn/pnpm install + build -> /opt/app-root/src (app + prod deps)
-│   └── nodejs-runtime/    # Node.js runtime, no package managers (port 3000)
+│   ├── java-builder/         # Java build image; compiles Maven/Gradle apps
+│   ├── java-runtime/         # Java runtime image; JRE only
+│   ├── nodejs-builder/       # Node.js build image; installs/builds app
+│   └── nodejs-runtime/       # Node.js runtime; no package managers
 ├── s2i-tests/
-│   ├── spring-boot-maven/  # Spring Boot (Maven, mvnw) test app (/actuator/health)
-│   ├── spring-boot-gradle/ # Spring Boot (Gradle, gradlew) test app (/actuator/health)
-│   ├── quarkus-maven/      # Quarkus (Maven) test app (/actuator/health)
-│   ├── quarkus-gradle/     # Quarkus (Gradle) test app (/actuator/health)
-│   ├── nodejs-npm/         # Plain Node.js http server, npm lockfile (/health)
-│   ├── nodejs-yarn/        # Plain Node.js http server, yarn lockfile (/health)
-│   └── nodejs-pnpm/        # Plain Node.js http server, pnpm lockfile (/health)
-├── Makefile               # Build and validation targets for all images
-├── README.md              # Project overview and usage guidance
-├── AGENTS.md              # Contributor rules and project conventions
-├── .gitignore             # Generated artifacts and local build output exclusions
-└── downloads/             # Supporting artifacts or downloaded resources
+│   ├── spring-boot-{maven,gradle}/
+│   ├── quarkus-{maven,gradle}/
+│   └── nodejs-{npm,yarn,pnpm}/
+├── Makefile
+├── AGENTS.md
+├── README.md
+└── .gitignore
 ```
+
+Each S2I test app can configure its HTTP health-check path in
+`s2i-tests/<app>/test-config.mk` by defining `S2I_TEST_HEALTH_PATH_<app>`.
+If no value is configured, the test uses `/health`.
 
 ## Commands
 Use `podman` if available, fallback to `docker`.
@@ -37,7 +36,7 @@ make build
 # Run all end-to-end tests (or per language: make test-java / make test-nodejs)
 make test
 
-# Test a single example (builds S2I -> runtime stage, verifies UID 1001, no build tools, and HTTP healthcheck)
+# Test a single example (runs builder assemble, copies the artifact to runtime, and verifies UID, tools, and health)
 make test-spring-boot-maven
 make test-spring-boot-gradle
 make test-quarkus-maven
@@ -45,12 +44,6 @@ make test-quarkus-gradle
 make test-nodejs-npm
 make test-nodejs-yarn
 make test-nodejs-pnpm
-
-# Manual S2I builder -> runtime build with Podman (--runtime-image cannot be combined with --as-dockerfile)
-s2i build s2i-tests/spring-boot-maven localhost/java-builder:dev localhost/spring-boot-maven-test:dev --as-dockerfile Dockerfile.gen
-printf '\nFROM localhost/java-runtime:dev\nCOPY --from=0 --chown=1001:0 /opt/app-root/src/app.jar /opt/app-root/src/app.jar\nUSER 1001\nCMD ["/usr/libexec/s2i/run"]\n' >> Dockerfile.gen
-podman build -t localhost/spring-boot-maven-test:dev -f Dockerfile.gen .
-rm -rf Dockerfile.gen upload
 
 # Scan runtime for CVEs
 trivy image localhost/java-runtime:dev
@@ -75,7 +68,7 @@ trivy image localhost/java-runtime:dev
 
 ### Test Apps (`s2i-tests/`)
 - `spring-boot-maven` and `spring-boot-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
-- `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
+- `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/q/health` (status `UP`) on port `8080`.
 - `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, or `Dockerfile.gen`.
@@ -85,10 +78,10 @@ trivy image localhost/java-runtime:dev
 2. Run the corresponding `Makefile` test target (`make test-java-*`, `make test-nodejs-*`) which verifies:
    - Java validation covers Maven and Gradle examples.
    - Node.js validation covers npm, Yarn, and pnpm examples.
-   - Multi-stage `builder` -> `runtime` build succeeds.
+   - The builder's S2I `assemble` script runs, then the app artifact is copied into the runtime image.
    - Final container runs as non-root (`UID 1001`).
    - Build tools are absent from the runtime image (Java: `mvn`, `gradle`, `javac`; Node.js: `npm`, `npx`, `yarn`, `pnpm`, `corepack`, `gcc`, `g++`, `make`).
-   - Application responds with `"status":"UP"` on its health endpoint (Java: `http://localhost:8080/actuator/health`, Node.js: `http://localhost:3000/health`).
+   - Application responds with status `UP` on its configured health endpoint (Spring Boot: `http://localhost:8080/actuator/health`, Quarkus: `http://localhost:8080/q/health`, Node.js: `http://localhost:3000/health`).
 
 ## Contributor Notes
 - Prefer small, focused changes over broad rewrites.
