@@ -22,7 +22,7 @@ This repository provides a foundation for exactly that workflow, with reusable S
 
 ## Design principles
 
-This project follows the conventions described in [AGENTS.md](/home/user/Workspace/builder-mono/AGENTS.md):
+This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 
 - Builder images are responsible for installation and build steps.
 - Runtime images are responsible only for execution.
