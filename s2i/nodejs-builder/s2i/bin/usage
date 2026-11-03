@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat <<EOF
+This is the nodejs-builder S2I image.
+To use it, install S2I: https://github.com/openshift/source-to-image
+EOF
+

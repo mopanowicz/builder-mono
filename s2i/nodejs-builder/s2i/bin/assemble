@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "---> Building Node.js application from source..."
+# TODO: Implement npm ci / pnpm install --frozen-lockfile and build logic
+

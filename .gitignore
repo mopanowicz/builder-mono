@@ -1,0 +1,10 @@
+# Built artifacts and dependencies
+node_modules/
+target/
+dist/
+build/
+.gradle/
+
+# Generated S2I files
+Dockerfile.gen
+

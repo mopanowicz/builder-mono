@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat <<EOF
+This is the nodejs-runtime S2I image.
+EOF
+
