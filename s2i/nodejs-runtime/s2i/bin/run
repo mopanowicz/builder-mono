@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "---> Starting Node.js runtime..."
-# TODO: exec node index.js
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
+cd "${DEPLOY_DIR}"
 
+# Entry point resolution: APP_MAIN -> package.json "main" -> common file names
+ENTRY="${APP_MAIN:-}"
+if [[ -z "${ENTRY}" && -f "package.json" ]]; then
+    ENTRY=$(node -p "require('./package.json').main || ''")
+fi
+if [[ -z "${ENTRY}" || ! -f "${ENTRY}" ]]; then
+    for candidate in server.js index.js app.js dist/server.js dist/index.js; do
+        if [[ -f "${candidate}" ]]; then
+            ENTRY="${candidate}"
+            break
+        fi
+    done
+fi
+
+if [[ -z "${ENTRY}" || ! -f "${ENTRY}" ]]; then
+    echo "ERROR: No entry point found in ${DEPLOY_DIR} (set APP_MAIN or package.json \"main\")" >&2
+    exit 1
+fi
+
+echo "---> Starting Node.js application (${ENTRY})..."
+# exec: node becomes PID 1 and receives SIGTERM/SIGINT directly
+exec node "${ENTRY}" "$@"

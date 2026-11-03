@@ -1,6 +1,95 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "---> Building Node.js application from source..."
-# TODO: Implement npm ci / pnpm install --frozen-lockfile and build logic
+SRC_DIR="/tmp/src"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
+NODE_ENV_BUILD="${NODE_ENV_BUILD:-development}"
 
+# Non-interactive package managers (corepack download prompt, pnpm TTY prompts)
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+export CI=true
+
+cd "${SRC_DIR}"
+
+if [[ ! -f "package.json" ]]; then
+    echo "ERROR: package.json not found in ${SRC_DIR}" >&2
+    exit 1
+fi
+
+# --- Detect package manager from lockfile (lockfile is mandatory for reproducible builds)
+LOCKFILES=()
+[[ -f "package-lock.json" || -f "npm-shrinkwrap.json" ]] && LOCKFILES+=("npm")
+[[ -f "yarn.lock" ]] && LOCKFILES+=("yarn")
+[[ -f "pnpm-lock.yaml" ]] && LOCKFILES+=("pnpm")
+
+if [[ ${#LOCKFILES[@]} -eq 0 ]]; then
+    echo "ERROR: No lockfile found (package-lock.json, yarn.lock or pnpm-lock.yaml required)" >&2
+    exit 1
+elif [[ ${#LOCKFILES[@]} -gt 1 ]]; then
+    echo "ERROR: Multiple lockfiles found (${LOCKFILES[*]}) - keep only one" >&2
+    exit 1
+fi
+
+PM="${LOCKFILES[0]}"
+if [[ "${PM}" == "yarn" ]]; then
+    # Yarn Berry (v2+) uses .yarnrc.yml; Yarn Classic (v1) does not
+    if [[ -f ".yarnrc.yml" ]]; then YARN_FLAVOR="berry"; else YARN_FLAVOR="classic"; fi
+fi
+
+has_script() {
+    node -e "process.exit(require('./package.json').scripts?.['$1'] ? 0 : 1)"
+}
+
+# --- Install all deps (incl. devDependencies needed for the build)
+case "${PM}" in
+    npm)
+        echo "---> Detected npm project (package-lock.json)"
+        NODE_ENV="${NODE_ENV_BUILD}" npm ci --no-audit --no-fund
+        ;;
+    yarn)
+        echo "---> Detected Yarn ${YARN_FLAVOR} project (yarn.lock)"
+        if [[ "${YARN_FLAVOR}" == "berry" ]]; then
+            NODE_ENV="${NODE_ENV_BUILD}" yarn install --immutable
+        else
+            NODE_ENV="${NODE_ENV_BUILD}" yarn install --frozen-lockfile --non-interactive
+        fi
+        ;;
+    pnpm)
+        echo "---> Detected pnpm project (pnpm-lock.yaml)"
+        NODE_ENV="${NODE_ENV_BUILD}" pnpm install --frozen-lockfile
+        ;;
+esac
+
+# --- Build (only if a "build" script exists)
+if has_script build; then
+    echo "---> Running build script"
+    "${PM}" run build
+else
+    echo "---> No build script found, skipping build"
+fi
+
+# --- Remove devDependencies so only production deps reach the runtime
+echo "---> Pruning devDependencies"
+case "${PM}" in
+    npm)
+        npm prune --omit=dev --no-audit --no-fund
+        ;;
+    yarn)
+        if [[ "${YARN_FLAVOR}" == "berry" ]]; then
+            yarn workspaces focus --all --production
+        else
+            yarn install --frozen-lockfile --non-interactive --production
+        fi
+        ;;
+    pnpm)
+        pnpm prune --prod
+        ;;
+esac
+
+# --- Copy app to deploy dir (consumed by nodejs-runtime)
+echo "---> Copying application to ${DEPLOY_DIR}"
+mkdir -p "${DEPLOY_DIR}"
+rm -rf .git
+cp -a "${SRC_DIR}/." "${DEPLOY_DIR}/"
+
+echo "---> Build complete: ${DEPLOY_DIR} (package manager: ${PM})"
