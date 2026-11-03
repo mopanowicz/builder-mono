@@ -42,8 +42,8 @@ This project follows the conventions described in [AGENTS.md](/home/user/Workspa
 │   ├── nodejs-builder/       # Node.js build image; installs/builds app
 │   └── nodejs-runtime/       # Node.js runtime image; no package managers
 ├── s2i-tests/
-│   ├── java-maven/           # Spring Boot test app
-│   ├── java-gradle/          # Spring Boot test app
+│   ├── spring-boot-maven/    # Spring Boot test app
+│   ├── spring-boot-gradle/   # Spring Boot test app
 │   ├── nodejs-npm/           # Node.js app with npm lockfile
 │   ├── nodejs-yarn/          # Node.js app with yarn lockfile
 │   └── nodejs-pnpm/          # Node.js app with pnpm lockfile

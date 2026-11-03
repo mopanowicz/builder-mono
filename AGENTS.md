@@ -13,8 +13,8 @@ This repository is intended as a reusable image-building foundation: builders in
 │   ├── nodejs-builder/    # npm/yarn/pnpm install + build -> /opt/app-root/src (app + prod deps)
 │   └── nodejs-runtime/    # Node.js runtime, no package managers (port 3000)
 ├── s2i-tests/
-│   ├── java-maven/        # Spring Boot (Maven, mvnw) test app (/actuator/health)
-│   ├── java-gradle/       # Spring Boot (Gradle, gradlew) test app (/actuator/health)
+│   ├── spring-boot-maven/  # Spring Boot (Maven, mvnw) test app (/actuator/health)
+│   ├── spring-boot-gradle/ # Spring Boot (Gradle, gradlew) test app (/actuator/health)
 │   ├── nodejs-npm/        # Plain Node.js http server, npm lockfile (/health)
 │   ├── nodejs-yarn/       # Plain Node.js http server, yarn lockfile (/health)
 │   └── nodejs-pnpm/       # Plain Node.js http server, pnpm lockfile (/health)
@@ -36,16 +36,16 @@ make build
 make test
 
 # Test a single example (builds S2I -> runtime stage, verifies UID 1001, no build tools, and HTTP healthcheck)
-make test-java-maven
-make test-java-gradle
+make test-spring-boot-maven
+make test-spring-boot-gradle
 make test-nodejs-npm
 make test-nodejs-yarn
 make test-nodejs-pnpm
 
 # Manual S2I builder -> runtime build with Podman (--runtime-image cannot be combined with --as-dockerfile)
-s2i build s2i-tests/java-maven localhost/java-builder:dev localhost/java-maven-test:dev --as-dockerfile Dockerfile.gen
+s2i build s2i-tests/spring-boot-maven localhost/java-builder:dev localhost/spring-boot-maven-test:dev --as-dockerfile Dockerfile.gen
 printf '\nFROM localhost/java-runtime:dev\nCOPY --from=0 --chown=1001:0 /opt/app-root/src/app.jar /opt/app-root/src/app.jar\nUSER 1001\nCMD ["/usr/libexec/s2i/run"]\n' >> Dockerfile.gen
-podman build -t localhost/java-maven-test:dev -f Dockerfile.gen .
+podman build -t localhost/spring-boot-maven-test:dev -f Dockerfile.gen .
 rm -rf Dockerfile.gen upload
 
 # Scan runtime for CVEs
@@ -70,7 +70,7 @@ trivy image localhost/java-runtime:dev
 - **Scope**: Modify and test one S2I image at a time.
 
 ### Test Apps (`s2i-tests/`)
-- `java-maven` and `java-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
+- `spring-boot-maven` and `spring-boot-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
 - `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, or `Dockerfile.gen`.
