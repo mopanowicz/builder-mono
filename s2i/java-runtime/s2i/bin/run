@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "---> Starting Java runtime..."
-# TODO: exec java -jar app.jar
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
+JAR_FILE="${APP_JAR:-${DEPLOY_DIR}/app.jar}"
 
+# Fallback: find the first .jar in DEPLOY_DIR if app.jar does not exist
+if [[ ! -f "${JAR_FILE}" ]]; then
+    JAR_FILE=$(find "${DEPLOY_DIR}" -maxdepth 1 -type f -name "*.jar" | head -n 1)
+fi
+
+if [[ -z "${JAR_FILE}" || ! -f "${JAR_FILE}" ]]; then
+    echo "ERROR: No runnable JAR file found in ${DEPLOY_DIR}" >&2
+    exit 1
+fi
+
+echo "---> Starting Java application (${JAR_FILE})..."
+# shellcheck disable=SC2086
+exec java ${JAVA_OPTS:-} -jar "${JAR_FILE}" ${JAVA_ARGS:-} "$@"

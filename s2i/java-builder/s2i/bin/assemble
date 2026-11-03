@@ -1,6 +1,59 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "---> Building Java application from source..."
-# TODO: Implement Maven/Gradle build logic
+SRC_DIR="/tmp/src"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
 
+mkdir -p "${DEPLOY_DIR}"
+cd "${SRC_DIR}"
+
+if [[ -f "pom.xml" ]]; then
+    echo "---> Detected Maven project (pom.xml)"
+    if [[ -f "./mvnw" ]]; then
+        echo "---> Using Maven Wrapper (./mvnw)"
+        chmod +x ./mvnw
+        MVN_CMD="./mvnw"
+    else
+        echo "---> Using system Maven (mvn)"
+        MVN_CMD="mvn"
+    fi
+
+    MAVEN_ARGS="${MAVEN_ARGS:-clean package --no-transfer-progress -Dmaven.javadoc.skip=true}"
+    echo "---> Running: ${MVN_CMD} ${MAVEN_ARGS}"
+    ${MVN_CMD} ${MAVEN_ARGS}
+
+    JAR_FILE=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "original-*.jar" | head -n 1)
+    if [[ -z "${JAR_FILE}" ]]; then
+        echo "ERROR: No runnable JAR found in target/" >&2
+        exit 1
+    fi
+    cp -v "${JAR_FILE}" "${DEPLOY_DIR}/app.jar"
+
+elif [[ -f "build.gradle" || -f "build.gradle.kts" ]]; then
+    echo "---> Detected Gradle project"
+    if [[ -f "./gradlew" ]]; then
+        echo "---> Using Gradle Wrapper (./gradlew)"
+        chmod +x ./gradlew
+        GRADLE_CMD="./gradlew"
+    else
+        echo "---> Using system Gradle (gradle)"
+        GRADLE_CMD="gradle"
+    fi
+
+    GRADLE_ARGS="${GRADLE_ARGS:-assemble -x test --no-daemon}"
+    echo "---> Running: ${GRADLE_CMD} ${GRADLE_ARGS}"
+    ${GRADLE_CMD} ${GRADLE_ARGS}
+
+    JAR_FILE=$(find build/libs -maxdepth 1 -type f -name "*.jar" ! -name "*-plain.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+    if [[ -z "${JAR_FILE}" ]]; then
+        echo "ERROR: No runnable JAR found in build/libs/" >&2
+        exit 1
+    fi
+    cp -v "${JAR_FILE}" "${DEPLOY_DIR}/app.jar"
+
+else
+    echo "ERROR: Neither pom.xml nor build.gradle(.kts) found in ${SRC_DIR}" >&2
+    exit 1
+fi
+
+echo "---> Build complete: ${DEPLOY_DIR}/app.jar"
