@@ -1,13 +1,16 @@
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 JAVA_TEST_APPS   := java-maven java-gradle
 
-.PHONY: build build-java test-examples test-java $(addprefix test-,$(JAVA_TEST_APPS))
+.PHONY: build build-java build-nodejs test test-java clean $(addprefix test-,$(JAVA_TEST_APPS))
+.NOTPARALLEL:
+
+build: build-java build-nodejs
 
 build-java:
 	$(CONTAINER_ENGINE) build -t localhost/java-builder:dev -f s2i/java-builder/Dockerfile s2i/java-builder/
 	$(CONTAINER_ENGINE) build -t localhost/java-runtime:dev -f s2i/java-runtime/Dockerfile s2i/java-runtime/
 
-build: build-java
+build-nodejs:
 	$(CONTAINER_ENGINE) build -t localhost/nodejs-builder:dev -f s2i/nodejs-builder/Dockerfile s2i/nodejs-builder/
 	$(CONTAINER_ENGINE) build -t localhost/nodejs-runtime:dev -f s2i/nodejs-runtime/Dockerfile s2i/nodejs-runtime/
 
@@ -34,4 +37,8 @@ $(addprefix test-,$(JAVA_TEST_APPS)): test-%: build-java
 
 test-java: $(addprefix test-,$(JAVA_TEST_APPS))
 
-test-all: test-java
+test: test-java
+
+clean:
+	rm -rf Dockerfile.gen upload
+	-$(CONTAINER_ENGINE) rmi $(patsubst %,localhost/%-test:dev,$(JAVA_TEST_APPS)) 2>/dev/null || true
