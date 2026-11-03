@@ -1,98 +1,57 @@
 # AGENTS.md - S2I Builder & Runtime Images
 
-## Project Overview
-This monorepo provides Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js**. The `s2i/` directory contains the image definitions. The `s2i-tests/` directory contains minimal apps to verify the builder/runtime flow.
-
-Goal: Build secure, small, reproducible builder and runtime images and test them against real apps.
+Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js**, with minimal verification apps in `s2i-tests/`.
 
 ## Repository Structure
+```text
 .
 ├── s2i/
-│   ├── java-builder/      # S2I builder image for Java (Maven/Gradle -> artifact)
-│   ├── java-runtime/      # S2I runtime image for Java (JRE only to run artifact)
-│   ├── nodejs-builder/    # S2I builder image for Node.js (npm/pnpm build)
-│   └── nodejs-runtime/    # S2I runtime image for Node.js (node + prod deps)
+│   ├── java-builder/      # Maven/Gradle build -> artifact
+│   ├── java-runtime/      # JRE-only runtime (port 8080)
+│   ├── nodejs-builder/    # npm/pnpm build -> artifact
+│   └── nodejs-runtime/    # Node.js runtime (port 3000)
 ├── s2i-tests/
-│   ├── java-maven/        # Tests java builder/runtime
+│   ├── java-maven/
 │   ├── java-gradle/
 │   ├── nodejs-npm/
-│   └── nodejs-yarn/
-└── AGENTS.md
-- Builder images are responsible for: `s2i/scripts/assemble` (install deps, build)
-- Runtime images are responsible for: `s2i/scripts/run` (start app)
-- Builders should produce artifacts that runtimes can consume. Do not mix concerns.
+│   └── nodejs-pnpm/
+├── hack/test-examples.sh
+└── Makefile
+```
 
-## Commands - Use these exact commands
-
-### Build Images Locally
-We use Docker/Podman. Use podman if available, fallback to docker.
+## Commands
+Use `podman` if available, fallback to `docker`.
 
 ```bash
-# Build a specific builder/runtime
-podman build -t localhost/java-builder:dev -f s2i/java-builder/Dockerfile s2i/java-builder/
-podman build -t localhost/java-runtime:dev -f s2i/java-runtime/Dockerfile s2i/java-runtime/
-podman build -t localhost/nodejs-builder:dev -f s2i/nodejs-builder/Dockerfile s2i/nodejs-builder/
-podman build -t localhost/nodejs-runtime:dev -f s2i/nodejs-runtime/Dockerfile s2i/nodejs-runtime/
-
-# Build all (if Makefile exists)
+# Build all images (or build individually: podman build -t localhost/<name>:dev -f s2i/<name>/Dockerfile s2i/<name>/)
 make build
-### Test Images with Examples (The main workflow)
-This is how you must verify any change.
-# S2I build using local images - Java example
-s2i build s2i-tests/java-maven localhost/java-builder:dev localhost/java-test-app --as-dockerfile Dockerfile.gen
-podman build -t localhost/java-test-app -f Dockerfile.gen .
 
-# Or if you use builder -> runtime chain:
-s2i build s2i-tests/java-maven localhost/java-builder:dev localhost/java-intermediate
-s2i build localhost/java-intermediate localhost/java-runtime:dev localhost/java-final --as-dockerfile
-# Then run
-podman run --rm -p 8080:8080 localhost/java-final
-
-# Node.js example
-s2i build s2i-tests/nodejs-npm localhost/nodejs-builder:dev localhost/node-test-app
-podman run --rm -p 3000:3000 localhost/node-test-app
-### Test All Examples
-./hack/test-examples.sh
-# or
+# Run all end-to-end tests
 make test-examples
-## Conventions for Agents
 
-### 1. Image Rules
-- *NEVER* install build tools (maven, npm, gcc) in runtime images. Runtimes must be minimal + secure.
-- *NEVER* run as root in final runtime. Use USER 1001 (S2I default).
-- Keep layers small. Combine RUN statements.
-- All images must have labels: `io.k8s.description`, `io.openshift.s2i.scripts-url`, `maintainer`.
-- S2I scripts must be in `s2i/<image>/s2i/bin/` or `s2i/<image>/scripts/` and be executable.
+# Test a single builder -> runtime flow (e.g., java-maven)
+s2i build s2i-tests/java-maven localhost/java-builder:dev localhost/java-app --runtime-image localhost/java-runtime:dev
+podman run --rm -p 8080:8080 localhost/java-app
 
-### 2. When Editing s2i/
-- After changing `s2i/_-builder`, you MUST test with corresponding example from `s2i-tests/`.
-- After changing `s2i/_-runtime`, you MUST test the full builder -> runtime flow.
-- Check CVE scanning: `trivy image localhost/java-runtime:dev`
+# Scan runtime for CVEs
+trivy image localhost/java-runtime:dev
+```
 
-### 3. When Editing s2i-tests/
-- Examples must stay minimal and copy-pasteable. They are not full apps.
-- Each example must be buildable without external secrets.
-- Don't add monorepo dependencies to examples. They must simulate a real user project.
-- Keep examples isolated: to get one example only, users use sparse-checkout:
-  `git clone --filter=blob:none --sparse <url> && git sparse-checkout set s2i-tests/java-maven`
+## Rules & Conventions
 
-### 4. Workflow for a Task
-1. Understand which image is affected (builder vs runtime, java vs node)
-2. Build the image locally
-3. Test with the matching example from `s2i-tests/`
-4. Verify `podman run` starts and responds on expected port (8080 for java, 3000 for node)
-5. Check logs for errors
+### Images (`s2i/`)
+- **Separation of concerns**: Builders compile/install deps (`s2i/bin/assemble`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`maven`, `npm`, `gcc`) in runtime images.
+- **Security & size**: Always run as `USER 1001` (never root). Combine `RUN` statements to keep layers small.
+- **Required metadata**: Include labels `io.k8s.description`, `io.openshift.s2i.scripts-url`, and `maintainer`.
+- **Scripts**: Place executable S2I scripts in `s2i/<image>/s2i/bin/`.
+- **Node.js**: Use `npm ci` or `pnpm install --frozen-lockfile` in builders (never `npm install`).
+- **Scope**: Modify and test one S2I image at a time. Keep language-specific logic inside `s2i/<lang>-*/`, not the root `Makefile`.
 
-## What NOT to do
-- Do not modify all 4 s2i images at once. Change one at a time and test.
-- Do not add language-specific logic to the root Makefile/Dockerfile - keep it inside s2i/<lang>-*/
-- Do not commit built artifacts, `node_modules/`, `target/`, `dist/` inside s2i-tests/
-- Do not use `npm install` - use `npm ci` / `pnpm install --frozen-lockfile` in builders
+### Test Apps (`s2i-tests/`)
+- Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
+- Never commit `node_modules/`, `target/`, `dist/`, `build/`, or `Dockerfile.gen`.
 
-## PR Checklist
-- [ ] Image builds
-- [ ] Matching example in `s2i-tests/` builds and runs
-- [ ] Runtime image is non-root
-- [ ] No secrets or large binaries committed
-
-Want me to generate one for a specific subfolder too, like `s2i/java-builder/AGENTS.md` with the exact assemble/run contract?
+## Verification Workflow
+1. Build the modified image locally.
+2. Build and run the matching example from `s2i-tests/` (`8080` for Java, `3000` for Node.js) and check logs for errors.
+3. If modifying a runtime image, test the full builder -> runtime chain and verify non-root execution.
