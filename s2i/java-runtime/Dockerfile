@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 
 LABEL io.k8s.description="S2I runtime image for Java (JRE only)" \
       io.openshift.s2i.scripts-url="image:///usr/libexec/s2i" \

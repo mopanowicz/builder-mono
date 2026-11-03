@@ -1,6 +1,9 @@
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
-JAVA_TEST_APPS   := spring-boot-maven spring-boot-gradle
+JAVA_TEST_APPS   := spring-boot-maven spring-boot-gradle quarkus-maven quarkus-gradle
 NODEJS_TEST_APPS := nodejs-npm nodejs-yarn nodejs-pnpm
+
+# Each test app may define S2I_TEST_HEALTH_PATH_<app> in this file.
+-include $(wildcard s2i-tests/*/test-config.mk)
 
 JAVA_TESTS   := $(addprefix test-,$(JAVA_TEST_APPS))
 NODEJS_TESTS := $(addprefix test-,$(NODEJS_TEST_APPS))
@@ -37,7 +40,7 @@ define S2I_TEST
 	@echo "===> [4/4] Verifying HTTP response on http://localhost:$(4)$(5)"
 	@cid=$$($(CONTAINER_ENGINE) run -d -p $(4):$(4) localhost/$(1)-test:dev); \
 	trap "$(CONTAINER_ENGINE) rm -f $$cid >/dev/null 2>&1 || true" EXIT; \
-	if ! curl -fsS --retry 15 --retry-delay 1 --retry-all-errors http://localhost:$(4)$(5) | grep -q '"status":"UP"'; then \
+	if ! curl -fsS --retry 15 --retry-delay 1 --retry-all-errors http://localhost:$(4)$(5) | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then \
 		echo "ERROR: Health check failed. Container logs:"; \
 		$(CONTAINER_ENGINE) logs $$cid; \
 		exit 1; \
@@ -46,10 +49,10 @@ define S2I_TEST
 endef
 
 $(JAVA_TESTS): test-%: build-java
-	$(call S2I_TEST,$*,java,/opt/app-root/src/app.jar,8080,/actuator/health,mvn gradle javac)
+	$(call S2I_TEST,$*,java,/opt/app-root/src/app.jar,8080,$(or $(S2I_TEST_HEALTH_PATH_$*),/health),mvn gradle javac)
 
 $(NODEJS_TESTS): test-%: build-nodejs
-	$(call S2I_TEST,$*,nodejs,/opt/app-root/src,3000,/health,npm npx yarn pnpm corepack gcc g++ make)
+	$(call S2I_TEST,$*,nodejs,/opt/app-root/src,3000,$(or $(S2I_TEST_HEALTH_PATH_$*),/health),npm npx yarn pnpm corepack gcc g++ make)
 
 test-java: $(JAVA_TESTS)
 

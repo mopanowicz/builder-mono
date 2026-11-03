@@ -18,11 +18,17 @@ if [[ -f "pom.xml" ]]; then
         MVN_CMD="mvn"
     fi
 
-    MAVEN_ARGS="${MAVEN_ARGS:-clean package --no-transfer-progress -Dmaven.javadoc.skip=true}"
+    if grep -Eq 'quarkus-maven-plugin|quarkus\.platform|io\.quarkus' pom.xml; then
+        echo "---> Detected Quarkus Maven project"
+        MAVEN_ARGS="${MAVEN_ARGS:-clean package --no-transfer-progress -Dmaven.javadoc.skip=true} -Dquarkus.package.jar.type=uber-jar"
+    else
+        MAVEN_ARGS="${MAVEN_ARGS:-clean package --no-transfer-progress -Dmaven.javadoc.skip=true}"
+    fi
+
     echo "---> Running: ${MVN_CMD} ${MAVEN_ARGS}"
     ${MVN_CMD} ${MAVEN_ARGS}
 
-    JAR_FILE=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "original-*.jar" | head -n 1)
+    JAR_FILE=$(find target -maxdepth 1 -type f \( -name "*-runner.jar" -o -name "*.jar" \) ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "original-*.jar" ! -name "*-plain.jar" | head -n 1)
     if [[ -z "${JAR_FILE}" ]]; then
         echo "ERROR: No runnable JAR found in target/" >&2
         exit 1
@@ -40,13 +46,22 @@ elif [[ -f "build.gradle" || -f "build.gradle.kts" ]]; then
         GRADLE_CMD="gradle"
     fi
 
-    GRADLE_ARGS="${GRADLE_ARGS:-assemble -x test --no-daemon}"
+    if grep -Eq 'io\.quarkus|quarkus' build.gradle* 2>/dev/null || grep -Eq 'io\.quarkus|quarkus' settings.gradle 2>/dev/null; then
+        echo "---> Detected Quarkus Gradle project"
+        GRADLE_ARGS="${GRADLE_ARGS:-build -x test --no-daemon} -Dquarkus.package.jar.type=uber-jar"
+    else
+        GRADLE_ARGS="${GRADLE_ARGS:-assemble -x test --no-daemon}"
+    fi
+
     echo "---> Running: ${GRADLE_CMD} ${GRADLE_ARGS}"
     ${GRADLE_CMD} ${GRADLE_ARGS}
 
-    JAR_FILE=$(find build/libs -maxdepth 1 -type f -name "*.jar" ! -name "*-plain.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+    JAR_FILE=$(find build -maxdepth 3 -type f -name "*-runner.jar" ! -name "*-plain.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
     if [[ -z "${JAR_FILE}" ]]; then
-        echo "ERROR: No runnable JAR found in build/libs/" >&2
+        JAR_FILE=$(find build/libs -maxdepth 1 -type f \( -name "*.jar" \) ! -name "*-plain.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "original-*.jar" | head -n 1)
+    fi
+    if [[ -z "${JAR_FILE}" ]]; then
+        echo "ERROR: No runnable JAR found in build/" >&2
         exit 1
     fi
     cp -v "${JAR_FILE}" "${DEPLOY_DIR}/app.jar"

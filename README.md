@@ -34,7 +34,11 @@ This project follows the conventions described in [AGENTS.md](/home/user/Workspa
 
 ## Repository layout
 
-```text
+```
+
+Each S2I test app can configure its HTTP health-check path in
+`s2i-tests/<app>/test-config.mk` by defining
+`S2I_TEST_HEALTH_PATH_<app>`. If no value is configured, the test uses `/health`.text
 .
 ├── s2i/
 │   ├── java-builder/         # Java build image; compiles Maven/Gradle apps
@@ -44,6 +48,8 @@ This project follows the conventions described in [AGENTS.md](/home/user/Workspa
 ├── s2i-tests/
 │   ├── spring-boot-maven/    # Spring Boot test app
 │   ├── spring-boot-gradle/   # Spring Boot test app
+│   ├── quarkus-maven/        # Quarkus Maven test app
+│   ├── quarkus-gradle/       # Quarkus Gradle test app
 │   ├── nodejs-npm/           # Node.js app with npm lockfile
 │   ├── nodejs-yarn/          # Node.js app with yarn lockfile
 │   └── nodejs-pnpm/          # Node.js app with pnpm lockfile

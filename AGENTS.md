@@ -15,9 +15,11 @@ This repository is intended as a reusable image-building foundation: builders in
 ├── s2i-tests/
 │   ├── spring-boot-maven/  # Spring Boot (Maven, mvnw) test app (/actuator/health)
 │   ├── spring-boot-gradle/ # Spring Boot (Gradle, gradlew) test app (/actuator/health)
-│   ├── nodejs-npm/        # Plain Node.js http server, npm lockfile (/health)
-│   ├── nodejs-yarn/       # Plain Node.js http server, yarn lockfile (/health)
-│   └── nodejs-pnpm/       # Plain Node.js http server, pnpm lockfile (/health)
+│   ├── quarkus-maven/      # Quarkus (Maven) test app (/actuator/health)
+│   ├── quarkus-gradle/     # Quarkus (Gradle) test app (/actuator/health)
+│   ├── nodejs-npm/         # Plain Node.js http server, npm lockfile (/health)
+│   ├── nodejs-yarn/        # Plain Node.js http server, yarn lockfile (/health)
+│   └── nodejs-pnpm/        # Plain Node.js http server, pnpm lockfile (/health)
 ├── Makefile               # Build and validation targets for all images
 ├── README.md              # Project overview and usage guidance
 ├── AGENTS.md              # Contributor rules and project conventions
@@ -38,6 +40,8 @@ make test
 # Test a single example (builds S2I -> runtime stage, verifies UID 1001, no build tools, and HTTP healthcheck)
 make test-spring-boot-maven
 make test-spring-boot-gradle
+make test-quarkus-maven
+make test-quarkus-gradle
 make test-nodejs-npm
 make test-nodejs-yarn
 make test-nodejs-pnpm
@@ -71,6 +75,7 @@ trivy image localhost/java-runtime:dev
 
 ### Test Apps (`s2i-tests/`)
 - `spring-boot-maven` and `spring-boot-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
+- `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
 - `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, or `Dockerfile.gen`.
