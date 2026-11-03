@@ -1,6 +1,6 @@
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 JAVA_TEST_APPS   := java-maven java-gradle
-NODEJS_TEST_APPS := nodejs-npm nodejs-pnpm
+NODEJS_TEST_APPS := nodejs-npm nodejs-yarn nodejs-pnpm
 
 JAVA_TESTS   := $(addprefix test-,$(JAVA_TEST_APPS))
 NODEJS_TESTS := $(addprefix test-,$(NODEJS_TEST_APPS))
