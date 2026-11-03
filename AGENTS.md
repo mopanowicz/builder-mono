@@ -2,6 +2,8 @@
 
 Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js**, with minimal verification apps in `s2i-tests/`.
 
+This repository is intended as a reusable image-building foundation: builders install dependencies and compile or package the app, while runtime images contain only the runnable artifact and the minimum runtime environment needed to execute it.
+
 ## Repository Structure
 ```text
 .
@@ -14,8 +16,13 @@ Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js*
 │   ├── java-maven/        # Spring Boot (Maven, mvnw) test app (/actuator/health)
 │   ├── java-gradle/       # Spring Boot (Gradle, gradlew) test app (/actuator/health)
 │   ├── nodejs-npm/        # Plain Node.js http server, npm lockfile (/health)
+│   ├── nodejs-yarn/       # Plain Node.js http server, yarn lockfile (/health)
 │   └── nodejs-pnpm/       # Plain Node.js http server, pnpm lockfile (/health)
-└── Makefile
+├── Makefile               # Build and validation targets for all images
+├── README.md              # Project overview and usage guidance
+├── AGENTS.md              # Contributor rules and project conventions
+├── .gitignore             # Generated artifacts and local build output exclusions
+└── downloads/             # Supporting artifacts or downloaded resources
 ```
 
 ## Commands
@@ -32,6 +39,7 @@ make test
 make test-java-maven
 make test-java-gradle
 make test-nodejs-npm
+make test-nodejs-yarn
 make test-nodejs-pnpm
 
 # Manual S2I builder -> runtime build with Podman (--runtime-image cannot be combined with --as-dockerfile)
@@ -46,25 +54,40 @@ trivy image localhost/java-runtime:dev
 
 ## Rules & Conventions
 
+### Project goals
+- Keep the builder and runtime responsibilities strictly separated.
+- Optimize for minimal, secure runtime images.
+- Validate both build correctness and runtime behavior with repeatable automation.
+- Produce examples that are small, isolated, and easy to reason about.
+
 ### Images (`s2i/`)
-- **Separation of concerns**: Builders compile/install deps (`s2i/bin/assemble`) from `/tmp/src` and place runnable artifacts in `/opt/app-root/src` (e.g., `/opt/app-root/src/app.jar`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`mvn`, `gradle`, `javac`, `npm`, `gcc`) in runtime images.
+- **Separation of concerns**: Builders compile/install dependencies (`s2i/bin/assemble`) from `/tmp/src` and place runnable artifacts in `/opt/app-root/src` (for example, `/opt/app-root/src/app.jar`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`mvn`, `gradle`, `javac`, `npm`, `gcc`, `g++`, `make`) in runtime images.
 - **Security & permissions**: Always run as `USER 1001` (never root) with `HOME=/opt/app-root` and `/opt/app-root/src` owned by `1001:0`. Combine `RUN` statements to keep layers small.
 - **Required metadata**: Include labels `io.k8s.description`, `io.openshift.s2i.scripts-url`, and `maintainer`.
 - **Scripts**: Place executable S2I scripts in `s2i/<image>/s2i/bin/`.
 - **Java**: Prefer `./mvnw` / `./gradlew` wrappers when present in the project, falling back to system `mvn` / `gradle`.
-- **Node.js**: Package manager is detected from the lockfile (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`); exactly one is required. Use `npm ci`, `yarn install --frozen-lockfile` / `--immutable`, or `pnpm install --frozen-lockfile` (never `npm install`). Yarn/pnpm are provided via corepack (`packageManager` field pins the version). The runtime starts the app with plain `node` (`APP_MAIN` -> `package.json` `main` -> `index.js`/`server.js`).
+- **Node.js**: Package manager is detected from the lockfile (`package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`); exactly one is required. Use `npm ci`, `yarn install --frozen-lockfile` / `--immutable`, or `pnpm install --frozen-lockfile` (never `npm install`). Yarn is supported in both classic and Berry workflows; Yarn/pnpm are provided via corepack (`packageManager` field pins the version). The runtime starts the app with plain `node` (`APP_MAIN` -> `package.json` `main` -> `index.js`/`server.js`).
 - **Scope**: Modify and test one S2I image at a time.
 
 ### Test Apps (`s2i-tests/`)
 - `java-maven` and `java-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
-- `nodejs-npm` and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
+- `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, or `Dockerfile.gen`.
 
 ## Verification Workflow
 1. Build the modified image locally (`make build-java`, `make build-nodejs`, or `make build`).
 2. Run the corresponding `Makefile` test target (`make test-java-*`, `make test-nodejs-*`) which verifies:
+   - Java validation covers Maven and Gradle examples.
+   - Node.js validation covers npm, Yarn, and pnpm examples.
    - Multi-stage `builder` -> `runtime` build succeeds.
    - Final container runs as non-root (`UID 1001`).
    - Build tools are absent from the runtime image (Java: `mvn`, `gradle`, `javac`; Node.js: `npm`, `npx`, `yarn`, `pnpm`, `corepack`, `gcc`, `g++`, `make`).
    - Application responds with `"status":"UP"` on its health endpoint (Java: `http://localhost:8080/actuator/health`, Node.js: `http://localhost:3000/health`).
+
+## Contributor Notes
+- Prefer small, focused changes over broad rewrites.
+- Keep examples minimal and self-contained.
+- Validate behavior using the repo's `Makefile` targets before finalizing a change.
+- Prefer reproducible, lockfile-driven dependency resolution over ad hoc package manager commands.
+- Maintain a clear separation between build artifacts and runtime artifacts in all custom image work.
