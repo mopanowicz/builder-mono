@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "ERROR: golang-runtime does not build sources. Build with golang-builder and copy /opt/app-root/src/app into this image." >&2
+exit 1

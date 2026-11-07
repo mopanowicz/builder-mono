@@ -1,17 +1,19 @@
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 JAVA_TEST_APPS   := spring-boot-maven spring-boot-gradle quarkus-maven quarkus-gradle
 NODEJS_TEST_APPS := nodejs-npm nodejs-yarn nodejs-pnpm
+GOLANG_TEST_APPS := golang-build golang-make
 
 # Each test app may define S2I_TEST_HEALTH_PATH_<app> in this file.
 -include $(wildcard s2i-tests/*/test-config.mk)
 
 JAVA_TESTS   := $(addprefix test-,$(JAVA_TEST_APPS))
 NODEJS_TESTS := $(addprefix test-,$(NODEJS_TEST_APPS))
+GOLANG_TESTS := $(addprefix test-,$(GOLANG_TEST_APPS))
 
-.PHONY: build build-java build-nodejs test test-java test-nodejs clean $(JAVA_TESTS) $(NODEJS_TESTS)
+.PHONY: build build-java build-nodejs build-golang test test-java test-nodejs test-golang clean $(JAVA_TESTS) $(NODEJS_TESTS) $(GOLANG_TESTS)
 .NOTPARALLEL:
 
-build: build-java build-nodejs
+build: build-java build-nodejs build-golang
 
 build-java:
 	$(CONTAINER_ENGINE) build -t localhost/java-builder:dev -f s2i/java-builder/Dockerfile s2i/java-builder/
@@ -21,8 +23,12 @@ build-nodejs:
 	$(CONTAINER_ENGINE) build -t localhost/nodejs-builder:dev -f s2i/nodejs-builder/Dockerfile s2i/nodejs-builder/
 	$(CONTAINER_ENGINE) build -t localhost/nodejs-runtime:dev -f s2i/nodejs-runtime/Dockerfile s2i/nodejs-runtime/
 
+build-golang:
+	$(CONTAINER_ENGINE) build -t localhost/golang-builder:dev -f s2i/golang-builder/Dockerfile s2i/golang-builder/
+	$(CONTAINER_ENGINE) build -t localhost/golang-runtime:dev -f s2i/golang-runtime/Dockerfile s2i/golang-runtime/
+
 # S2I-script end-to-end test: builder -> runtime build, UID 1001, no build tools, HTTP healthcheck
-# $(1)=app  $(2)=lang (java|nodejs)  $(3)=artifact path  $(4)=port  $(5)=health path  $(6)=forbidden tools
+# $(1)=app  $(2)=lang (java|nodejs|golang)  $(3)=artifact path  $(4)=port  $(5)=health path  $(6)=forbidden tools
 define S2I_TEST
 	@echo "===> [1/4] Building S2I image for $(1) ($(2)-builder -> $(2)-runtime)"
 	@trap 'rm -rf Dockerfile.gen upload' EXIT; \
@@ -41,7 +47,7 @@ define S2I_TEST
 		exit 1; \
 	fi
 	@echo "===> [4/4] Verifying HTTP response on http://localhost:$(4)$(5)"
-	@cid=$$($(CONTAINER_ENGINE) run -d -p $(4):$(4) localhost/$(1)-test:dev); \
+	@cid=$$($(CONTAINER_ENGINE) run -d -p $(4):$(4) localhost/$(1)-test:dev) || { echo "ERROR: Failed to start container (is port $(4) already in use?)"; exit 1; }; \
 	trap "$(CONTAINER_ENGINE) rm -f $$cid >/dev/null 2>&1 || true" EXIT; \
 	echo "Waiting for the container to become ready..."; \
 	if ! curl -fsS --retry 15 --retry-delay 1 --retry-all-errors http://localhost:$(4)$(5) 2>/dev/null | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then \
@@ -58,12 +64,17 @@ $(JAVA_TESTS): test-%: build-java
 $(NODEJS_TESTS): test-%: build-nodejs
 	$(call S2I_TEST,$*,nodejs,/opt/app-root/src,3000,$(or $(S2I_TEST_HEALTH_PATH_$*),/health),npm npx yarn pnpm corepack gcc g++ make)
 
+$(GOLANG_TESTS): test-%: build-golang
+	$(call S2I_TEST,$*,golang,/opt/app-root/src/app,8080,$(or $(S2I_TEST_HEALTH_PATH_$*),/health),go gofmt gcc g++ cc make git)
+
 test-java: $(JAVA_TESTS)
 
 test-nodejs: $(NODEJS_TESTS)
 
-test: test-java test-nodejs
+test-golang: $(GOLANG_TESTS)
+
+test: test-java test-nodejs test-golang
 
 clean:
 	rm -rf Dockerfile.gen upload
-	-$(CONTAINER_ENGINE) rmi $(patsubst %,localhost/%-test:dev,$(JAVA_TEST_APPS) $(NODEJS_TEST_APPS)) 2>/dev/null || true
+	-$(CONTAINER_ENGINE) rmi $(patsubst %,localhost/%-test:dev,$(JAVA_TEST_APPS) $(NODEJS_TEST_APPS) $(GOLANG_TEST_APPS)) 2>/dev/null || true

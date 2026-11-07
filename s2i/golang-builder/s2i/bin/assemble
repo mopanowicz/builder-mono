@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SRC_DIR="/tmp/src"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
+APP_NAME="${APP_NAME:-app}"                     # Name of the deployed binary
+GO_MAIN_PACKAGE="${GO_MAIN_PACKAGE:-.}"         # go build: main package to compile
+GO_LDFLAGS="${GO_LDFLAGS:--s -w}"               # go build: linker flags (strip by default)
+MAKE_TARGET="${MAKE_TARGET:-build}"             # make: target producing the binary
+MAKE_OUTPUT="${MAKE_OUTPUT:-bin/${APP_NAME}}"   # make: binary path (relative to source)
+RUN_TESTS="${RUN_TESTS:-false}"                 # true: run tests before building
+
+# Static binaries by default; set CGO_ENABLED=1 explicitly to opt in to cgo
+export CGO_ENABLED="${CGO_ENABLED:-0}"
+
+cd "${SRC_DIR}"
+
+if [[ ! -f "go.mod" ]]; then
+    echo "ERROR: go.mod not found in ${SRC_DIR}" >&2
+    exit 1
+fi
+
+echo "---> Using $(go version)"
+
+# --- Download and verify dependencies (go.sum is only present when there are dependencies)
+if [[ -f "go.sum" ]]; then
+    echo "---> Downloading and verifying modules (go.sum)"
+    go mod download
+    go mod verify
+fi
+
+has_make_target() {
+    make -n "$1" >/dev/null 2>&1
+}
+
+MAKEFILE=""
+for f in GNUmakefile makefile Makefile; do
+    [[ -f "${f}" ]] && MAKEFILE="${f}" && break
+done
+
+mkdir -p "${DEPLOY_DIR}"
+
+if [[ -n "${MAKEFILE}" ]]; then
+    echo "---> Detected Makefile project (${MAKEFILE})"
+    if ! has_make_target "${MAKE_TARGET}"; then
+        echo "ERROR: ${MAKEFILE} has no '${MAKE_TARGET}' target (set MAKE_TARGET)" >&2
+        exit 1
+    fi
+
+    if [[ "${RUN_TESTS}" == "true" ]]; then
+        if has_make_target test; then
+            echo "---> Running: make test"
+            make test
+        else
+            echo "---> No 'test' target found, skipping tests"
+        fi
+    fi
+
+    echo "---> Running: make ${MAKE_TARGET}"
+    make "${MAKE_TARGET}"
+
+    if [[ ! -f "${MAKE_OUTPUT}" || ! -x "${MAKE_OUTPUT}" ]]; then
+        echo "ERROR: Executable '${MAKE_OUTPUT}' not found after 'make ${MAKE_TARGET}' (set MAKE_OUTPUT)" >&2
+        exit 1
+    fi
+    cp -v "${MAKE_OUTPUT}" "${DEPLOY_DIR}/${APP_NAME}"
+
+else
+    echo "---> Detected go build project (go.mod)"
+    if [[ "${RUN_TESTS}" == "true" ]]; then
+        echo "---> Running: go test ./..."
+        go test ./...
+    fi
+
+    echo "---> Running: CGO_ENABLED=${CGO_ENABLED} go build -trimpath -ldflags=\"${GO_LDFLAGS}\" -o ${DEPLOY_DIR}/${APP_NAME} ${GO_MAIN_PACKAGE}"
+    go build -trimpath -ldflags="${GO_LDFLAGS}" -o "${DEPLOY_DIR}/${APP_NAME}" "${GO_MAIN_PACKAGE}"
+fi
+
+# --- Report linkage: runtime image only guarantees a minimal base, so static is preferred
+if ldd "${DEPLOY_DIR}/${APP_NAME}" >/dev/null 2>&1; then
+    echo "---> Note: ${APP_NAME} is dynamically linked (CGO_ENABLED=${CGO_ENABLED})"
+else
+    echo "---> ${APP_NAME} is statically linked"
+fi
+
+echo "---> Build complete: ${DEPLOY_DIR}/${APP_NAME}"

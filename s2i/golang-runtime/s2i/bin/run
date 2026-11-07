@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
+APP_BINARY="${APP_BINARY:-${DEPLOY_DIR}/${APP_NAME:-app}}"
+
+if [[ ! -x "${APP_BINARY}" ]]; then
+    echo "ERROR: Executable ${APP_BINARY} not found (copy it from golang-builder or set APP_BINARY)" >&2
+    exit 1
+fi
+
+echo "---> Starting Go application (${APP_BINARY})..."
+# exec: the binary becomes PID 1 and receives SIGTERM/SIGINT directly
+exec "${APP_BINARY}" "$@"

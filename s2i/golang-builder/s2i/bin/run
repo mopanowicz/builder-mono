@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/app-root/src}"
+APP_BINARY="${APP_BINARY:-${DEPLOY_DIR}/${APP_NAME:-app}}"
+
+if [[ ! -x "${APP_BINARY}" ]]; then
+    echo "ERROR: Executable ${APP_BINARY} not found (run assemble first or set APP_BINARY)" >&2
+    exit 1
+fi
+
+echo "---> Starting Go application (${APP_BINARY})..."
+exec "${APP_BINARY}" "$@"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat <<EOF
+This is the golang-builder S2I image.
+It compiles a Go module from /tmp/src into /opt/app-root/src/app:
+  - Makefile present: runs 'make build' and copies bin/app (MAKE_TARGET, MAKE_OUTPUT)
+  - otherwise:        CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" (GO_MAIN_PACKAGE)
+Set RUN_TESTS=true to run 'make test' / 'go test ./...' before building.
+To use it, install S2I: https://github.com/openshift/source-to-image
+EOF

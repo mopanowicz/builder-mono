@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat <<EOF
+This is the golang-runtime S2I image.
+It runs the Go binary at /opt/app-root/src/app (override with APP_BINARY).
+EOF
