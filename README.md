@@ -1,6 +1,6 @@
 # builder-mono
 
-A reusable Source-to-Image (S2I) image foundation for Java and Node.js applications.
+A reusable Source-to-Image (S2I) image foundation for Java, Node.js, and Go applications.
 
 This repository provides a small, opinionated set of builder and runtime images designed to:
 - separate build-time dependencies from runtime dependencies,
@@ -8,7 +8,7 @@ This repository provides a small, opinionated set of builder and runtime images 
 - enforce non-root execution,
 - and validate application health with automated checks.
 
-The project is intentionally minimal and reusable: it targets common patterns for Java (Maven/Gradle) and Node.js (npm/yarn/pnpm), while keeping the final runtime images free from build tooling.
+The project is intentionally minimal and reusable: it targets common patterns for Java (Maven/Gradle), Node.js (npm/yarn/pnpm), and Go (`go build`/Makefile), while keeping the final runtime images free from build tooling.
 
 ## Why this project exists
 
@@ -26,10 +26,11 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 
 - Builder images are responsible for installation and build steps.
 - Runtime images are responsible only for execution.
-- Build tools such as Maven, Gradle, npm, yarn, pnpm, gcc, g++, and make are not shipped in runtime images.
+- Build tools such as Maven, Gradle, npm, yarn, pnpm, the Go toolchain, gcc, g++, and make are not shipped in runtime images.
 - Applications run as non-root user `1001`.
 - Java projects prefer local wrappers (`./mvnw`, `./gradlew`) when present.
 - Node.js projects require exactly one package manager lockfile (`package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`).
+- Go projects are compiled into a static binary, using `make build` when a `Makefile` is present and `go build` otherwise.
 - The runtime image starts an app without build tooling and with a lean production environment.
 
 ## Repository layout
@@ -40,11 +41,14 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 │   ├── java-builder/         # Java build image; compiles Maven/Gradle apps
 │   ├── java-runtime/         # Java runtime image; JRE only
 │   ├── nodejs-builder/       # Node.js build image; installs/builds app
-│   └── nodejs-runtime/       # Node.js runtime image; no package managers
+│   ├── nodejs-runtime/       # Node.js runtime image; no package managers
+│   ├── golang-builder/       # Go build image; compiles a static binary (go build / make)
+│   └── golang-runtime/       # Go runtime image; binary only, no Go toolchain
 ├── s2i-tests/
 │   ├── spring-boot-{maven,gradle}/
 │   ├── quarkus-{maven,gradle}/
-│   └── nodejs-{npm,yarn,pnpm}/
+│   ├── nodejs-{npm,yarn,pnpm}/
+│   └── golang-{build,make}/
 ├── Makefile
 ├── AGENTS.md
 ├── README.md

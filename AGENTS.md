@@ -1,6 +1,6 @@
 # AGENTS.md - S2I Builder & Runtime Images
 
-Source-to-Image (S2I) **builder** and **runtime** images for **Java and Node.js**, with minimal verification apps in `s2i-tests/`.
+Source-to-Image (S2I) **builder** and **runtime** images for **Java, Node.js, and Go**, with minimal verification apps in `s2i-tests/`.
 
 This repository is intended as a reusable image-building foundation: builders install dependencies and compile or package the app, while runtime images contain only the runnable artifact and the minimum runtime environment needed to execute it.
 
@@ -11,11 +11,14 @@ This repository is intended as a reusable image-building foundation: builders in
 │   ├── java-builder/         # Java build image; compiles Maven/Gradle apps
 │   ├── java-runtime/         # Java runtime image; JRE only
 │   ├── nodejs-builder/       # Node.js build image; installs/builds app
-│   └── nodejs-runtime/       # Node.js runtime; no package managers
+│   ├── nodejs-runtime/       # Node.js runtime; no package managers
+│   ├── golang-builder/       # Go build image; compiles a static binary (go build / make)
+│   └── golang-runtime/       # Go runtime image; binary only, no Go toolchain
 ├── s2i-tests/
 │   ├── spring-boot-{maven,gradle}/
 │   ├── quarkus-{maven,gradle}/
-│   └── nodejs-{npm,yarn,pnpm}/
+│   ├── nodejs-{npm,yarn,pnpm}/
+│   └── golang-{build,make}/
 ├── Makefile
 ├── AGENTS.md
 ├── README.md
@@ -30,10 +33,10 @@ If no value is configured, the test uses `/health`.
 Use `podman` if available, fallback to `docker`.
 
 ```bash
-# Build all images (or per language: make build-java / make build-nodejs)
+# Build all images (or per language: make build-java / make build-nodejs / make build-golang)
 make build
 
-# Run all end-to-end tests (or per language: make test-java / make test-nodejs)
+# Run all end-to-end tests (or per language: make test-java / make test-nodejs / make test-golang)
 make test
 
 # Test a single example (runs builder assemble, copies the artifact to runtime, and verifies UID, tools, and health)
@@ -44,6 +47,8 @@ make test-quarkus-gradle
 make test-nodejs-npm
 make test-nodejs-yarn
 make test-nodejs-pnpm
+make test-golang-build
+make test-golang-make
 
 # Scan runtime for CVEs
 trivy image localhost/java-runtime:dev
@@ -58,30 +63,34 @@ trivy image localhost/java-runtime:dev
 - Produce examples that are small, isolated, and easy to reason about.
 
 ### Images (`s2i/`)
-- **Separation of concerns**: Builders compile/install dependencies (`s2i/bin/assemble`) from `/tmp/src` and place runnable artifacts in `/opt/app-root/src` (for example, `/opt/app-root/src/app.jar`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`mvn`, `gradle`, `javac`, `npm`, `gcc`, `g++`, `make`) in runtime images.
+- **Separation of concerns**: Builders compile/install dependencies (`s2i/bin/assemble`) from `/tmp/src` and place runnable artifacts in `/opt/app-root/src` (for example, `/opt/app-root/src/app.jar`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`mvn`, `gradle`, `javac`, `npm`, `go`, `gcc`, `g++`, `make`) in runtime images.
 - **Security & permissions**: Always run as `USER 1001` (never root) with `HOME=/opt/app-root` and `/opt/app-root/src` owned by `1001:0`. Combine `RUN` statements to keep layers small.
 - **Required metadata**: Include labels `io.k8s.description`, `io.openshift.s2i.scripts-url`, and `maintainer`.
 - **Scripts**: Place executable S2I scripts in `s2i/<image>/s2i/bin/`.
 - **Java**: Prefer `./mvnw` / `./gradlew` wrappers when present in the project, falling back to system `mvn` / `gradle`.
 - **Node.js**: Package manager is detected from the lockfile (`package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`); exactly one is required. Use `npm ci`, `yarn install --frozen-lockfile` / `--immutable`, or `pnpm install --frozen-lockfile` (never `npm install`). Yarn is supported in both classic and Berry workflows; Yarn/pnpm are provided via corepack (`packageManager` field pins the version). The runtime starts the app with plain `node` (`APP_MAIN` -> `package.json` `main` -> `index.js`/`server.js`).
+- **Go**: `go.mod` is required; modules are downloaded and verified (`go mod verify`) when `go.sum` exists. If a `Makefile` is present the builder runs `make build` (`MAKE_TARGET`) and copies `bin/app` (`MAKE_OUTPUT`); otherwise it runs `go build -trimpath -ldflags="-s -w"` on `GO_MAIN_PACKAGE` (default `.`). Builds are static by default (`CGO_ENABLED=0`) and use `GOTOOLCHAIN=local` (no toolchain downloads). `RUN_TESTS=true` runs `make test` / `go test ./...` before building. The artifact is `/opt/app-root/src/app`; the runtime `exec`s it directly (`APP_BINARY` overrides the path).
 - **Scope**: Modify and test one S2I image at a time.
 
 ### Test Apps (`s2i-tests/`)
 - `spring-boot-maven` and `spring-boot-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
 - `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/q/health` (status `UP`) on port `8080`.
 - `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
+- `golang-build` and `golang-make` are dependency-free Go `net/http` servers (standard library only) exposing `/healthz` (`{"status":"UP"}`, Kubernetes naming convention) on port `8080`. `golang-build` is compiled with plain `go build`; `golang-make` provides a `Makefile` with `build` and `test` targets.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
-- Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, or `Dockerfile.gen`.
+- Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, `Dockerfile.gen`, or compiled Go binaries (`bin/`, `app`).
 
 ## Verification Workflow
-1. Build the modified image locally (`make build-java`, `make build-nodejs`, or `make build`).
-2. Run the corresponding `Makefile` test target (`make test-java-*`, `make test-nodejs-*`) which verifies:
+1. Build the modified image locally (`make build-java`, `make build-nodejs`, `make build-golang`, or `make build`).
+2. Run the corresponding `Makefile` test target (`make test-java-*`, `make test-nodejs-*`, `make test-golang-*`) which verifies:
    - Java validation covers Maven and Gradle examples.
    - Node.js validation covers npm, Yarn, and pnpm examples.
+   - Go validation covers `go build` and `Makefile` examples.
    - The builder's S2I `assemble` script runs, then the app artifact is copied into the runtime image.
    - Final container runs as non-root (`UID 1001`).
-   - Build tools are absent from the runtime image (Java: `mvn`, `gradle`, `javac`; Node.js: `npm`, `npx`, `yarn`, `pnpm`, `corepack`, `gcc`, `g++`, `make`).
-   - Application responds with status `UP` on its configured health endpoint (Spring Boot: `http://localhost:8080/actuator/health`, Quarkus: `http://localhost:8080/q/health`, Node.js: `http://localhost:3000/health`).
+   - Build tools are absent from the runtime image (Java: `mvn`, `gradle`, `javac`; Node.js: `npm`, `npx`, `yarn`, `pnpm`, `corepack`, `gcc`, `g++`, `make`; Go: `go`, `gofmt`, `gcc`, `g++`, `cc`, `make`, `git`).
+   - Application responds with status `UP` on its configured health endpoint (Spring Boot: `http://localhost:8080/actuator/health`, Quarkus: `http://localhost:8080/q/health`, Node.js: `http://localhost:3000/health`, Go: `http://localhost:8080/healthz`).
+   - The test fails if the container cannot start (for example, when the host port is already in use).
 
 ## Contributor Notes
 - Prefer small, focused changes over broad rewrites.
