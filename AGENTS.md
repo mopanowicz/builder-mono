@@ -76,7 +76,7 @@ trivy image localhost/java-runtime:dev
 - `spring-boot-maven` and `spring-boot-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
 - `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/q/health` (status `UP`) on port `8080`.
 - `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
-- `golang-build` and `golang-make` are dependency-free Go `net/http` servers (standard library only) exposing `/healthz` (`{"status":"UP"}`, Kubernetes naming convention) on port `8080`. `golang-build` is compiled with plain `go build`; `golang-make` provides a `Makefile` with `build` and `test` targets.
+- `golang-build` and `golang-make` are minimal Go `net/http` servers exposing `/healthz` (`{"status":"UP"}`, Kubernetes naming convention) over HTTP on port `8080` (`PORT`) and optionally HTTPS on port `8443` (`TLS_PORT`) when `KEYSTORE_P12` and `KEYSTORE_PASSWORD` (PKCS#12 keystore) are set. `golang-build` is compiled with plain `go build`; `golang-make` provides a `Makefile` with `build` and `test` targets.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, `Dockerfile.gen`, or compiled Go binaries (`bin/`, `app`).
 
