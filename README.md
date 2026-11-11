@@ -61,3 +61,22 @@ Each S2I test app can configure its HTTP health-check path in
 If no value is configured, the test uses `/health`.
 
 Generated local build output such as `target/`, `build/`, `.gradle/`, and `node_modules/` is intentionally excluded from version control and should not be committed.
+
+## Command cheat sheet
+
+GNU Make does not include a built-in option to list targets. To print target names from this Makefile, run:
+
+```bash
+make -qp | awk -F: '/^[a-zA-Z0-9][^$#[:space:]]*:/ { print $1 }' | sort -u
+```
+
+Common targets:
+
+| Target | Description |
+| --- | --- |
+| `make build` | Build all builder and runtime images. |
+| `make build-java` / `make build-nodejs` / `make build-golang` | Build images for one language. |
+| `make test` | Run all S2I end-to-end tests. |
+| `make test-java` / `make test-nodejs` / `make test-golang` | Test all examples for one language. |
+| `make test-<app>` | Test one example, such as `make test-nodejs-pnpm`. |
+| `make clean` | Remove generated test files and test images. |
