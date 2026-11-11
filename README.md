@@ -2,7 +2,7 @@
 
 A reusable Source-to-Image (S2I) image foundation for Java, Node.js, and Go applications.
 
-This repository provides a small, opinionated set of builder and runtime images designed to:
+This repository provides a small, opinionated set of builder and runtime images built on Rocky Linux 9 minimal, designed to:
 - separate build-time dependencies from runtime dependencies,
 - produce minimal runtime containers,
 - enforce non-root execution,
@@ -26,6 +26,7 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 
 - Builder images are responsible for installation and build steps.
 - Runtime images are responsible only for execution.
+- All images use the `rockylinux:9-minimal` base. Java images use Rocky OpenJDK 25; the builder installs Maven under `/opt/maven` and Gradle under `/opt/gradle`.
 - Build tools such as Maven, Gradle, npm, yarn, pnpm, the Go toolchain, gcc, g++, and make are not shipped in runtime images.
 - Applications run as non-root user `1001`.
 - Java projects prefer local wrappers (`./mvnw`, `./gradlew`) when present.

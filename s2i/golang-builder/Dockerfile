@@ -1,4 +1,4 @@
-FROM golang:1.26-trixie
+FROM rockylinux:9-minimal
 
 LABEL io.k8s.description="S2I builder image for Go (go build / Makefile)" \
       io.openshift.s2i.scripts-url="image:///usr/libexec/s2i" \
@@ -13,8 +13,16 @@ ENV HOME=/opt/app-root \
 
 COPY ./s2i/bin/ /usr/libexec/s2i
 
-# golang base image already ships gcc, make and git (builder only, never in runtime)
-RUN mkdir -p /opt/app-root/src /opt/app-root/go /opt/app-root/.cache /tmp/src && \
+RUN microdnf update -y && \
+    microdnf install -y \
+        ca-certificates \
+        gcc \
+        gcc-c++ \
+        git \
+        golang \
+        make && \
+    microdnf clean all && \
+    mkdir -p /opt/app-root/src /opt/app-root/go /opt/app-root/.cache /tmp/src && \
     chmod +x /usr/libexec/s2i/* && \
     chown -R 1001:0 /opt/app-root /tmp/src /usr/libexec/s2i && \
     chmod -R g=u /opt/app-root /tmp/src

@@ -63,11 +63,12 @@ trivy image localhost/java-runtime:dev
 - Produce examples that are small, isolated, and easy to reason about.
 
 ### Images (`s2i/`)
+- **Base image**: All builder and runtime images use `rockylinux:9-minimal`.
 - **Separation of concerns**: Builders compile/install dependencies (`s2i/bin/assemble`) from `/tmp/src` and place runnable artifacts in `/opt/app-root/src` (for example, `/opt/app-root/src/app.jar`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`mvn`, `gradle`, `javac`, `npm`, `go`, `gcc`, `g++`, `make`) in runtime images.
 - **Security & permissions**: Always run as `USER 1001` (never root) with `HOME=/opt/app-root` and `/opt/app-root/src` owned by `1001:0`. Combine `RUN` statements to keep layers small.
 - **Required metadata**: Include labels `io.k8s.description`, `io.openshift.s2i.scripts-url`, and `maintainer`.
 - **Scripts**: Place executable S2I scripts in `s2i/<image>/s2i/bin/`.
-- **Java**: Prefer `./mvnw` / `./gradlew` wrappers when present in the project, falling back to system `mvn` / `gradle`.
+- **Java**: Use only Rocky's OpenJDK 25 packages (`java-25-openjdk-devel` in the builder and `java-25-openjdk-headless` in the runtime). Install Apache Maven from its official binary distribution under `/opt/maven` and Gradle under `/opt/gradle` in the builder. Prefer `./mvnw` / `./gradlew` wrappers when present, falling back to those installed tools.
 - **Node.js**: Package manager is detected from the lockfile (`package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`); exactly one is required. Use `npm ci`, `yarn install --frozen-lockfile` / `--immutable`, or `pnpm install --frozen-lockfile` (never `npm install`). Yarn is supported in both classic and Berry workflows; Yarn/pnpm are provided via corepack (`packageManager` field pins the version). The runtime starts the app with plain `node` (`APP_MAIN` -> `package.json` `main` -> `index.js`/`server.js`).
 - **Go**: `go.mod` is required; modules are downloaded and verified (`go mod verify`) when `go.sum` exists. If a `Makefile` is present the builder runs `make build` (`MAKE_TARGET`) and copies `bin/app` (`MAKE_OUTPUT`); otherwise it runs `go build -trimpath -ldflags="-s -w"` on `GO_MAIN_PACKAGE` (default `.`). Builds are static by default (`CGO_ENABLED=0`) and use `GOTOOLCHAIN=local` (no toolchain downloads). `RUN_TESTS=true` runs `make test` / `go test ./...` before building. The artifact is `/opt/app-root/src/app`; the runtime `exec`s it directly (`APP_BINARY` overrides the path).
 - **Scope**: Modify and test one S2I image at a time.

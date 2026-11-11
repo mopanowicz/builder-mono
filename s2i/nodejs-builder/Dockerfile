@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM rockylinux:9-minimal
 
 LABEL io.k8s.description="S2I builder image for Node.js (npm/yarn/pnpm)" \
       io.openshift.s2i.scripts-url="image:///usr/libexec/s2i" \
@@ -6,15 +6,27 @@ LABEL io.k8s.description="S2I builder image for Node.js (npm/yarn/pnpm)" \
 
 ENV HOME=/opt/app-root \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    NPM_CONFIG_UPDATE_NOTIFIER=false
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    PATH="/usr/local/bin:${PATH}"
 
 COPY ./s2i/bin/ /usr/libexec/s2i
 
 # python3/make/g++ are needed by node-gyp to compile native addons (builder only, never in runtime)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 make g++ ca-certificates && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg && \
+RUN microdnf update -y && \
+    microdnf install -y \
+        ca-certificates \
+        curl \
+        gcc \
+        gcc-c++ \
+        git \
+        make \
+        python3 \
+        tar \
+        xz && \
+    microdnf clean all && \
+    curl -fsSL "https://nodejs.org/dist/v24.0.0/node-v24.0.0-linux-x64.tar.xz" -o /tmp/node-v24.tar.xz && \
+    tar -xJf /tmp/node-v24.tar.xz -C /usr/local --strip-components=1 && \
+    rm -f /tmp/node-v24.tar.xz && \
     corepack enable && \
     mkdir -p /opt/app-root/src /tmp/src && \
     chmod +x /usr/libexec/s2i/* && \
