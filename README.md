@@ -58,3 +58,5 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 Each S2I test app can configure its HTTP health-check path in
 `s2i-tests/<app>/test-config.mk` by defining `S2I_TEST_HEALTH_PATH_<app>`.
 If no value is configured, the test uses `/health`.
+
+Generated local build output such as `target/`, `build/`, `.gradle/`, and `node_modules/` is intentionally excluded from version control and should not be committed.
