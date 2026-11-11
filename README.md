@@ -26,12 +26,12 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 
 - Builder images are responsible for installation and build steps.
 - Runtime images are responsible only for execution.
-- All images use the `rockylinux:9-minimal` base. Java images use Rocky OpenJDK 25; the builder installs Maven under `/opt/maven` and Gradle under `/opt/gradle`.
+- All images use the `rockylinux:9-minimal` base. Java images use Rocky OpenJDK 25; the builder installs Maven (`3.10.0`) under `/opt/maven` and Gradle (`9.8.2`) under `/opt/gradle`. Node.js images install Node.js (`24.22.2`) from the official Linux x64 binary distribution under `/usr/local`, while Go builder images use Rocky's `golang` package.
 - Build tools such as Maven, Gradle, npm, yarn, pnpm, the Go toolchain, gcc, g++, and make are not shipped in runtime images.
 - Applications run as non-root user `1001`.
-- Java projects prefer local wrappers (`./mvnw`, `./gradlew`) when present.
-- Node.js projects require exactly one package manager lockfile (`package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`).
-- Go projects are compiled into a static binary, using `make build` when a `Makefile` is present and `go build` otherwise.
+- Java projects prefer local wrappers (`./mvnw`, `./gradlew`) when present, falling back to the builder's installed Maven/Gradle (in `s2i-tests/`, wrapper scripts are disabled as `mvnw.off` / `gradlew.off` so tests verify the system-installed tools).
+- Node.js projects require exactly one package manager lockfile (`package-lock.json` / `npm-shrinkwrap.json`, `yarn.lock`, or `pnpm-lock.yaml`).
+- Go projects are compiled into a static binary, using `make build` when a `Makefile` is present and `go build` otherwise. The Go test applications support HTTP on port `8080` and optional HTTPS on port `8443` via PKCS#12 keystores (`KEYSTORE_P12` and `KEYSTORE_PASSWORD`).
 - The runtime image starts an app without build tooling and with a lean production environment.
 
 ## Repository layout

@@ -50,6 +50,9 @@ make test-nodejs-pnpm
 make test-golang-build
 make test-golang-make
 
+# Clean generated test files and test images
+make clean
+
 # Scan runtime for CVEs
 trivy image localhost/java-runtime:dev
 ```
@@ -68,14 +71,14 @@ trivy image localhost/java-runtime:dev
 - **Security & permissions**: Always run as `USER 1001` (never root) with `HOME=/opt/app-root` and `/opt/app-root/src` owned by `1001:0`. Combine `RUN` statements to keep layers small.
 - **Required metadata**: Include labels `io.k8s.description`, `io.openshift.s2i.scripts-url`, and `maintainer`.
 - **Scripts**: Place executable S2I scripts in `s2i/<image>/s2i/bin/`.
-- **Java**: Use only Rocky's OpenJDK 25 packages (`java-25-openjdk-devel` in the builder and `java-25-openjdk-headless` in the runtime). Install Apache Maven from its official binary distribution under `/opt/maven` and Gradle under `/opt/gradle` in the builder. Prefer `./mvnw` / `./gradlew` wrappers when present, falling back to those installed tools.
-- **Node.js**: Package manager is detected from the lockfile (`package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`); exactly one is required. Use `npm ci`, `yarn install --frozen-lockfile` / `--immutable`, or `pnpm install --frozen-lockfile` (never `npm install`). Yarn is supported in both classic and Berry workflows; Yarn/pnpm are provided via corepack (`packageManager` field pins the version). The runtime starts the app with plain `node` (`APP_MAIN` -> `package.json` `main` -> `index.js`/`server.js`).
+- **Java**: Use only Rocky's OpenJDK 25 packages (`java-25-openjdk-devel` in the builder and `java-25-openjdk-headless` in the runtime). Install Apache Maven (`3.10.0`) from its official binary distribution under `/opt/maven` and Gradle (`9.8.2`) under `/opt/gradle` in the builder. Prefer `./mvnw` / `./gradlew` wrappers when present, falling back to those installed tools.
+- **Node.js**: Install Node.js (`24.22.2`) from the official Linux x64 binary distribution under `/usr/local` in both builder and runtime images (stripping package managers from the runtime). Package manager is detected from the lockfile (`package-lock.json` / `npm-shrinkwrap.json`, `yarn.lock`, or `pnpm-lock.yaml`); exactly one is required. Use `npm ci`, `yarn install --frozen-lockfile` / `--immutable`, or `pnpm install --frozen-lockfile` (never `npm install`). Yarn is supported in both classic and Berry workflows; Yarn/pnpm are provided via corepack (`packageManager` field pins the version). The runtime starts the app with plain `node` (`APP_MAIN` -> `package.json` `main` -> `server.js` / `index.js` / `app.js` / `dist/server.js` / `dist/index.js`).
 - **Go**: `go.mod` is required; modules are downloaded and verified (`go mod verify`) when `go.sum` exists. If a `Makefile` is present the builder runs `make build` (`MAKE_TARGET`) and copies `bin/app` (`MAKE_OUTPUT`); otherwise it runs `go build -trimpath -ldflags="-s -w"` on `GO_MAIN_PACKAGE` (default `.`). Builds are static by default (`CGO_ENABLED=0`) and use `GOTOOLCHAIN=local` (no toolchain downloads). `RUN_TESTS=true` runs `make test` / `go test ./...` before building. The artifact is `/opt/app-root/src/app`; the runtime `exec`s it directly (`APP_BINARY` overrides the path).
 - **Scope**: Modify and test one S2I image at a time.
 
 ### Test Apps (`s2i-tests/`)
 - `spring-boot-maven` and `spring-boot-gradle` are minimal Spring Boot applications exposing `/actuator/health` (`{"status":"UP"}`) on port `8080`.
-- `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/q/health` (status `UP`) on port `8080`.
+- `quarkus-maven` and `quarkus-gradle` are minimal Quarkus applications exposing `/q/health` (status `UP`) on port `8080`. Local wrapper scripts in the Java test apps are disabled (`mvnw.off`, `gradlew.off`) so tests exercise the builder's installed Maven and Gradle distributions.
 - `nodejs-npm`, `nodejs-yarn`, and `nodejs-pnpm` are dependency-free Node.js http servers exposing `/health` (`{"status":"UP"}`) on port `3000`. Commit their lockfiles.
 - `golang-build` and `golang-make` are minimal Go `net/http` servers exposing `/healthz` (`{"status":"UP"}`, Kubernetes naming convention) over HTTP on port `8080` (`PORT`) and optionally HTTPS on port `8443` (`TLS_PORT`) when `KEYSTORE_P12` and `KEYSTORE_PASSWORD` (PKCS#12 keystore) are set. `golang-build` is compiled with plain `go build`; `golang-make` provides a `Makefile` with `build` and `test` targets.
 - Keep examples minimal, isolated (sparse-checkout friendly), and buildable without external secrets.
@@ -83,7 +86,7 @@ trivy image localhost/java-runtime:dev
 
 ## Verification Workflow
 1. Build the modified image locally (`make build-java`, `make build-nodejs`, `make build-golang`, or `make build`).
-2. Run the corresponding `Makefile` test target (`make test-java-*`, `make test-nodejs-*`, `make test-golang-*`) which verifies:
+2. Run the corresponding `Makefile` test target (`make test-java`, `make test-nodejs`, `make test-golang`, or `make test-<app>`) which verifies:
    - Java validation covers Maven and Gradle examples.
    - Node.js validation covers npm, Yarn, and pnpm examples.
    - Go validation covers `go build` and `Makefile` examples.
