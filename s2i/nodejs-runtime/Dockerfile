@@ -5,6 +5,7 @@ LABEL io.k8s.description="S2I runtime image for Node.js (node + prod deps)" \
       maintainer="platform-team"
 
 ENV HOME=/opt/app-root \
+    NODE_VERSION=24.22.2 \
     NODE_ENV=production \
     PATH="/usr/local/bin:${PATH}"
 
@@ -18,9 +19,9 @@ RUN microdnf update -y && \
         tar \
         xz && \
     microdnf clean all && \
-    curl -fsSL "https://nodejs.org/dist/v24.0.0/node-v24.0.0-linux-x64.tar.xz" -o /tmp/node-v24.tar.xz && \
-    tar -xJf /tmp/node-v24.tar.xz -C /usr/local --strip-components=1 && \
-    rm -f /tmp/node-v24.tar.xz && \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz && \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && \
+    rm -f /tmp/node.tar.xz && \
     rm -rf /usr/local/lib/node_modules /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
            /usr/local/bin/yarn /usr/local/bin/yarnpkg /usr/local/bin/pnpm && \

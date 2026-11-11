@@ -5,7 +5,7 @@ LABEL io.k8s.description="S2I builder image for Node.js (npm/yarn/pnpm)" \
       maintainer="platform-team"
 
 ENV HOME=/opt/app-root \
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    NODE_VERSION=24.22.2 \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     PATH="/usr/local/bin:${PATH}"
 
@@ -24,10 +24,9 @@ RUN microdnf update -y && \
         tar \
         xz && \
     microdnf clean all && \
-    curl -fsSL "https://nodejs.org/dist/v24.0.0/node-v24.0.0-linux-x64.tar.xz" -o /tmp/node-v24.tar.xz && \
-    tar -xJf /tmp/node-v24.tar.xz -C /usr/local --strip-components=1 && \
-    rm -f /tmp/node-v24.tar.xz && \
-    corepack enable && \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz && \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && \
+    rm -f /tmp/node.tar.xz && \
     mkdir -p /opt/app-root/src /tmp/src && \
     chmod +x /usr/libexec/s2i/* && \
     chown -R 1001:0 /opt/app-root /tmp/src /usr/libexec/s2i && \
