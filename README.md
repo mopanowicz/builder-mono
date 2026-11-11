@@ -26,7 +26,7 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 
 - Builder images are responsible for installation and build steps.
 - Runtime images are responsible only for execution.
-- All images use the `rockylinux:9-minimal` base. Java images use Rocky OpenJDK 25; the builder installs Maven (`3.10.0`) under `/opt/maven` and Gradle (`9.8.2`) under `/opt/gradle`. Node.js images install Node.js (`24.22.2`) from the official Linux x64 binary distribution under `/usr/local`, while Go builder images use Rocky's `golang` package.
+- All images use the `rockylinux:9-minimal` base. Java images use Rocky OpenJDK 25; the builder installs Maven (`3.10.0`) under `/opt/maven` and Gradle (`9.8.2`) under `/opt/gradle`. Node.js images install Node.js (`24.22.2`) from the official Linux x64 binary distribution under `/usr/local` (with `corepack` installed and enabled in the builder to provide `yarn` and `pnpm`), while Go builder images use Rocky's `golang` package.
 - Build tools such as Maven, Gradle, npm, yarn, pnpm, the Go toolchain, gcc, g++, and make are not shipped in runtime images.
 - Applications run as non-root user `1001`.
 - Java projects prefer local wrappers (`./mvnw`, `./gradlew`) when present, falling back to the builder's installed Maven/Gradle (in `s2i-tests/`, wrapper scripts are disabled as `mvnw.off` / `gradlew.off` so tests verify the system-installed tools).
