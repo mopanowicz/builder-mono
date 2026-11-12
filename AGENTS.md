@@ -8,6 +8,7 @@ This repository is intended as a reusable image-building foundation: builders in
 ```text
 .
 ├── s2i/
+│   ├── base-builder/         # Common builder base image (OS updates, common packages, S2I dirs)
 │   ├── java-builder/         # Java build image; compiles Maven/Gradle apps
 │   ├── java-runtime/         # Java runtime image; JRE only
 │   ├── nodejs-builder/       # Node.js build image; installs/builds app
@@ -33,7 +34,7 @@ If no value is configured, the test uses `/health`.
 Use `podman` if available, fallback to `docker`.
 
 ```bash
-# Build all images (or per language: make build-java / make build-nodejs / make build-golang)
+# Build all images (or base/per language: make build-base / make build-java / make build-nodejs / make build-golang)
 make build
 
 # Run all end-to-end tests (or per language: make test-java / make test-nodejs / make test-golang)
@@ -66,7 +67,7 @@ trivy image localhost/java-runtime:dev
 - Produce examples that are small, isolated, and easy to reason about.
 
 ### Images (`s2i/`)
-- **Base image**: All builder and runtime images use `rockylinux:9-minimal`.
+- **Base image**: `base-builder` and all runtime images use `rockylinux:9-minimal`. Language builder images (`java-builder`, `nodejs-builder`, `golang-builder`) use `localhost/base-builder:dev` as their base image, which provides OS updates, common utilities (`ca-certificates`, `curl`, `git`, `gzip`, `tar`, `unzip`, `xz`), `HOME=/opt/app-root`, `/opt/app-root/src`, `/tmp/src`, `/usr/libexec/s2i`, and `1001:0` permissions.
 - **Separation of concerns**: Builders compile/install dependencies (`s2i/bin/assemble`) from `/tmp/src` and place runnable artifacts in `/opt/app-root/src` (for example, `/opt/app-root/src/app.jar`); runtimes only start the app (`s2i/bin/run`). Never install build tools (`mvn`, `gradle`, `javac`, `npm`, `go`, `gcc`, `g++`, `make`) in runtime images.
 - **Security & permissions**: Always run as `USER 1001` (never root) with `HOME=/opt/app-root` and `/opt/app-root/src` owned by `1001:0`. Combine `RUN` statements to keep layers small.
 - **Required metadata**: Include labels `io.k8s.description`, `io.openshift.s2i.scripts-url`, and `maintainer`.
@@ -85,7 +86,7 @@ trivy image localhost/java-runtime:dev
 - Never commit `node_modules/`, `target/`, `dist/`, `build/`, `.gradle/`, `upload/`, `Dockerfile.gen`, or compiled Go binaries (`bin/`, `app`).
 
 ## Verification Workflow
-1. Build the modified image locally (`make build-java`, `make build-nodejs`, `make build-golang`, or `make build`).
+1. Build the modified image locally (`make build-base`, `make build-java`, `make build-nodejs`, `make build-golang`, or `make build`).
 2. Run the corresponding `Makefile` test target (`make test-java`, `make test-nodejs`, `make test-golang`, or `make test-<app>`) which verifies:
    - Java validation covers Maven and Gradle examples.
    - Node.js validation covers npm, Yarn, and pnpm examples.

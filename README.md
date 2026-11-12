@@ -26,7 +26,7 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 
 - Builder images are responsible for installation and build steps.
 - Runtime images are responsible only for execution.
-- All images use the `rockylinux:9-minimal` base. Java images use Rocky OpenJDK 25; the builder installs Maven (`3.10.0`) under `/opt/maven` and Gradle (`9.8.2`) under `/opt/gradle`. Node.js images install Node.js (`24.22.2`) from the official Linux x64 binary distribution under `/usr/local` (with `corepack` installed and enabled in the builder to provide `yarn` and `pnpm`), while Go builder images use Rocky's `golang` package.
+- `base-builder` and all runtime images use the `rockylinux:9-minimal` base; all language builder images (`java-builder`, `nodejs-builder`, `golang-builder`) extend `localhost/base-builder:dev`, which centralizes OS updates, common packages (`ca-certificates`, `curl`, `git`, `gzip`, `tar`, `unzip`, `xz`), and S2I directory layout/permissions. Java images use Rocky OpenJDK 25; the builder installs Maven (`3.10.0`) under `/opt/maven` and Gradle (`9.8.2`) under `/opt/gradle`. Node.js images install Node.js (`24.22.2`) from the official Linux x64 binary distribution under `/usr/local` (with `corepack` installed and enabled in the builder to provide `yarn` and `pnpm`), while Go builder images use Rocky's `golang` package.
 - Build tools such as Maven, Gradle, npm, yarn, pnpm, the Go toolchain, gcc, g++, and make are not shipped in runtime images.
 - Applications run as non-root user `1001`.
 - Java projects prefer local wrappers (`./mvnw`, `./gradlew`) when present, falling back to the builder's installed Maven/Gradle (in `s2i-tests/`, wrapper scripts are disabled as `mvnw.off` / `gradlew.off` so tests verify the system-installed tools).
@@ -39,6 +39,7 @@ This project follows the conventions described in [AGENTS.md](./AGENTS.md):
 ```
 .
 ├── s2i/
+│   ├── base-builder/         # Common builder base image (OS updates, common packages, S2I dirs)
 │   ├── java-builder/         # Java build image; compiles Maven/Gradle apps
 │   ├── java-runtime/         # Java runtime image; JRE only
 │   ├── nodejs-builder/       # Node.js build image; installs/builds app
@@ -75,7 +76,8 @@ Common targets:
 | Target | Description |
 | --- | --- |
 | `make build` | Build all builder and runtime images. |
-| `make build-java` / `make build-nodejs` / `make build-golang` | Build images for one language. |
+| `make build-base` | Build the common `base-builder` image. |
+| `make build-java` / `make build-nodejs` / `make build-golang` | Build images for one language (including `base-builder`). |
 | `make test` | Run all S2I end-to-end tests. |
 | `make test-java` / `make test-nodejs` / `make test-golang` | Test all examples for one language. |
 | `make test-<app>` | Test one example, such as `make test-nodejs-pnpm`. |

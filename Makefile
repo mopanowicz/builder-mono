@@ -10,20 +10,23 @@ JAVA_TESTS   := $(addprefix test-,$(JAVA_TEST_APPS))
 NODEJS_TESTS := $(addprefix test-,$(NODEJS_TEST_APPS))
 GOLANG_TESTS := $(addprefix test-,$(GOLANG_TEST_APPS))
 
-.PHONY: build build-java build-nodejs build-golang test test-java test-nodejs test-golang clean $(JAVA_TESTS) $(NODEJS_TESTS) $(GOLANG_TESTS)
+.PHONY: build build-base build-java build-nodejs build-golang test test-java test-nodejs test-golang clean $(JAVA_TESTS) $(NODEJS_TESTS) $(GOLANG_TESTS)
 .NOTPARALLEL:
 
-build: build-java build-nodejs build-golang
+build: build-base build-java build-nodejs build-golang
 
-build-java:
+build-base:
+	$(CONTAINER_ENGINE) build -t localhost/base-builder:dev -f s2i/base-builder/Dockerfile s2i/base-builder/
+
+build-java: build-base
 	$(CONTAINER_ENGINE) build -t localhost/java-builder:dev -f s2i/java-builder/Dockerfile s2i/java-builder/
 	$(CONTAINER_ENGINE) build -t localhost/java-runtime:dev -f s2i/java-runtime/Dockerfile s2i/java-runtime/
 
-build-nodejs:
+build-nodejs: build-base
 	$(CONTAINER_ENGINE) build -t localhost/nodejs-builder:dev -f s2i/nodejs-builder/Dockerfile s2i/nodejs-builder/
 	$(CONTAINER_ENGINE) build -t localhost/nodejs-runtime:dev -f s2i/nodejs-runtime/Dockerfile s2i/nodejs-runtime/
 
-build-golang:
+build-golang: build-base
 	$(CONTAINER_ENGINE) build -t localhost/golang-builder:dev -f s2i/golang-builder/Dockerfile s2i/golang-builder/
 	$(CONTAINER_ENGINE) build -t localhost/golang-runtime:dev -f s2i/golang-runtime/Dockerfile s2i/golang-runtime/
 
