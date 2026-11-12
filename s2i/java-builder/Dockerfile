@@ -1,15 +1,13 @@
 FROM localhost/base-builder:dev
 
-LABEL io.k8s.description="S2I builder image for Java (Maven/Gradle)" \
-      io.openshift.s2i.scripts-url="image:///usr/libexec/s2i" \
-      maintainer="platform-team"
+LABEL io.k8s.description="S2I builder image for Java (Maven/Gradle)"
 
 ENV GRADLE_VERSION=9.8.2 \
     MAVEN_VERSION=3.10.0 \
     JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
     PATH="/opt/maven/bin:/opt/gradle/bin:${JAVA_HOME}/bin:${PATH}"
 
-COPY ./s2i/bin/ /usr/libexec/s2i
+COPY --chown=1001:0 ./s2i/bin/ /usr/libexec/s2i
 
 RUN microdnf install -y \
         java-25-openjdk-devel && \
@@ -24,9 +22,6 @@ RUN microdnf install -y \
     unzip -q /tmp/gradle.zip -d /opt && \
     mv "/opt/gradle-${GRADLE_VERSION}" /opt/gradle && \
     rm -f /tmp/gradle.zip && \
-    chmod +x /usr/libexec/s2i/* && \
-    chown -R 1001:0 /usr/libexec/s2i
+    chmod +x /usr/libexec/s2i/*
 
 USER 1001
-WORKDIR /tmp/src
-CMD ["/usr/libexec/s2i/usage"]

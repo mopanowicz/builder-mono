@@ -18,7 +18,7 @@ RUN microdnf update -y && \
     microdnf clean all && \
     mkdir -p /opt/app-root/src /tmp/src /usr/libexec/s2i && \
     chown -R 1001:0 /opt/app-root /tmp/src /usr/libexec/s2i && \
-    chmod -R g=u /opt/app-root /tmp/src
+    chmod -R g=u /opt/app-root /tmp/src /usr/libexec/s2i
 
 WORKDIR /tmp/src
 CMD ["/usr/libexec/s2i/usage"]
